@@ -160,14 +160,22 @@ class _WithdrawModalState extends State<WithdrawModal> {
 
     try {
       final amount = double.parse(_amountController.text);
+      final selectedBank = _banks.cast<Map<String, dynamic>>().firstWhere(
+            (b) => (b['code'] ?? b['bankCode']) == _selectedBankCode,
+            orElse: () => <String, dynamic>{},
+          );
+      final bankName = (selectedBank['bname'] ?? selectedBank['name'] ?? 'Unknown Bank').toString();
 
       await WalletService.transferToExternal(
         accountNumber: _accountNumberController.text,
+        accountName: _validatedAccountName ?? '',
         bankCode: _selectedBankCode!,
+        bankName: bankName,
         amount: amount,
         narration: _narrationController.text.isNotEmpty
             ? _narrationController.text
             : 'Withdrawal to external account',
+        pin: null,
       );
 
       setState(() => _isProcessing = false);

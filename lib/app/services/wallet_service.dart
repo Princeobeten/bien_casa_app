@@ -1,86 +1,59 @@
-import 'dart:convert';
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
+import 'package:uuid/uuid.dart';
 import '../config/app_constants.dart';
-import 'storage_service.dart';
+import 'dio_client.dart';
 
 class WalletService {
   static String get baseUrl => AppConstants.baseApiUrl;
 
+  static Future<Map<String, dynamic>> _handleResponse(
+      Future<Map<String, dynamic>> Function() fn) async {
+    try {
+      return await fn();
+    } on DioException catch (e) {
+      if (kDebugMode) {
+        print('❌ Wallet error: $e');
+        print('❌ Response statusCode: ${e.response?.statusCode}');
+        print('❌ Response data: ${e.response?.data}');
+      }
+      final message = e.response?.data is Map
+          ? (e.response!.data as Map)['message']?.toString()
+          : null;
+      throw Exception(message ?? e.message ?? 'Request failed');
+    }
+  }
+
   // Get all user wallets
   static Future<Map<String, dynamic>> getUserWallets() async {
-    try {
-      final token = await StorageService.getToken();
-
+    return _handleResponse(() async {
       if (kDebugMode) {
         print('💰 ===== GET USER WALLETS =====');
         print('💰 Endpoint: $baseUrl/wallet/wallet');
       }
-
-      final response = await http.get(
-        Uri.parse('$baseUrl/wallet/wallet'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
-
+      final data = await DioClient.get('wallet/wallet');
       if (kDebugMode) {
-        print('💰 Status Code: ${response.statusCode}');
-        print('💰 Response: ${response.body}');
+        print('💰 Response: $data');
         print('💰 ==============================');
       }
-
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      } else {
-        final error = jsonDecode(response.body);
-        throw Exception(error['message'] ?? 'Failed to fetch wallets');
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('❌ Get wallets error: $e');
-      }
-      rethrow;
-    }
+      return data;
+    });
   }
 
   // Get wallet by ID
   static Future<Map<String, dynamic>> getWalletById(int walletId) async {
-    try {
-      final token = await StorageService.getToken();
-
+    return _handleResponse(() async {
       if (kDebugMode) {
         print('💰 ===== GET WALLET BY ID =====');
         print('💰 Endpoint: $baseUrl/wallet/wallet/$walletId');
       }
-
-      final response = await http.get(
-        Uri.parse('$baseUrl/wallet/wallet/$walletId'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
-
+      final data = await DioClient.get('wallet/wallet/$walletId');
       if (kDebugMode) {
-        print('💰 Status Code: ${response.statusCode}');
-        print('💰 Response: ${response.body}');
+        print('💰 Response: $data');
         print('💰 ==============================');
       }
-
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      } else {
-        final error = jsonDecode(response.body);
-        throw Exception(error['message'] ?? 'Failed to fetch wallet');
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('❌ Get wallet error: $e');
-      }
-      rethrow;
-    }
+      return data;
+    });
   }
 
   // Get wallet balance with details
@@ -88,43 +61,21 @@ class WalletService {
     required int walletId,
     bool includeDetails = true,
   }) async {
-    try {
-      final token = await StorageService.getToken();
-
-      final uri = Uri.parse('$baseUrl/wallet/wallet/$walletId/balance')
-          .replace(queryParameters: {'includeDetails': includeDetails.toString()});
-
+    return _handleResponse(() async {
       if (kDebugMode) {
         print('💰 ===== GET WALLET BALANCE =====');
-        print('💰 Endpoint: $uri');
+        print('💰 Endpoint: $baseUrl/wallet/wallet/$walletId/balance');
       }
-
-      final response = await http.get(
-        uri,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
+      final data = await DioClient.get(
+        'wallet/wallet/$walletId/balance',
+        queryParameters: {'includeDetails': includeDetails},
       );
-
       if (kDebugMode) {
-        print('💰 Status Code: ${response.statusCode}');
-        print('💰 Response: ${response.body}');
+        print('💰 Response: $data');
         print('💰 ================================');
       }
-
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      } else {
-        final error = jsonDecode(response.body);
-        throw Exception(error['message'] ?? 'Failed to fetch balance');
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('❌ Get balance error: $e');
-      }
-      rethrow;
-    }
+      return data;
+    });
   }
 
   // Get user transactions
@@ -134,139 +85,60 @@ class WalletService {
     int limit = 50,
     int offset = 0,
   }) async {
-    try {
-      final token = await StorageService.getToken();
-
-      final queryParams = <String, String>{
-        'limit': limit.toString(),
-        'offset': offset.toString(),
+    return _handleResponse(() async {
+      final queryParams = <String, dynamic>{
+        'limit': limit,
+        'offset': offset,
       };
       if (type != null) queryParams['type'] = type;
       if (status != null) queryParams['status'] = status;
 
-      final uri = Uri.parse('$baseUrl/wallet/transactions')
-          .replace(queryParameters: queryParams);
-
       if (kDebugMode) {
         print('💰 ===== GET USER TRANSACTIONS =====');
-        print('💰 Endpoint: $uri');
+        print('💰 Endpoint: $baseUrl/wallet/transactions');
       }
-
-      final response = await http.get(
-        uri,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
+      final data = await DioClient.get(
+        'wallet/transactions',
+        queryParameters: queryParams,
       );
-
       if (kDebugMode) {
-        print('💰 Status Code: ${response.statusCode}');
-        print('💰 Response: ${response.body}');
+        print('💰 Response: $data');
         print('💰 ===================================');
       }
-
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      } else {
-        final error = jsonDecode(response.body);
-        throw Exception(error['message'] ?? 'Failed to fetch transactions');
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('❌ Get transactions error: $e');
-      }
-      rethrow;
-    }
+      return data;
+    });
   }
 
   // Get transaction by ID
   static Future<Map<String, dynamic>> getTransactionById(String transactionId) async {
-    try {
-      final token = await StorageService.getToken();
-
+    return _handleResponse(() async {
       if (kDebugMode) {
         print('💰 ===== GET TRANSACTION BY ID =====');
         print('💰 Endpoint: $baseUrl/wallet/transactions/$transactionId');
       }
-
-      final response = await http.get(
-        Uri.parse('$baseUrl/wallet/transactions/$transactionId'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
-
+      final data = await DioClient.get('wallet/transactions/$transactionId');
       if (kDebugMode) {
-        print('💰 Status Code: ${response.statusCode}');
-        print('💰 Response: ${response.body}');
+        print('💰 Response: $data');
         print('💰 ===================================');
       }
-
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      } else {
-        final error = jsonDecode(response.body);
-        throw Exception(error['message'] ?? 'Failed to fetch transaction');
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('❌ Get transaction error: $e');
-      }
-      rethrow;
-    }
+      return data;
+    });
   }
 
   // Get available banks
   static Future<Map<String, dynamic>> getBanks() async {
-    try {
-      final token = await StorageService.getToken();
-
+    return _handleResponse(() async {
       if (kDebugMode) {
         print('💰 ===== GET BANKS =====');
         print('💰 Endpoint: $baseUrl/wallet/banks');
-        print('💰 Token: ${token?.substring(0, 20)}...');
       }
-
-      final response = await http.get(
-        Uri.parse('$baseUrl/wallet/banks'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
-
+      final data = await DioClient.get('wallet/banks');
       if (kDebugMode) {
-        print('💰 Status Code: ${response.statusCode}');
-        print('💰 Response Body: ${response.body}');
-        print('💰 Response Length: ${response.body.length}');
+        print('💰 Response: $data');
         print('💰 ========================');
       }
-
-      if (response.statusCode == 200) {
-        final decoded = jsonDecode(response.body);
-        if (kDebugMode) {
-          print('💰 Decoded response: $decoded');
-        }
-        return decoded;
-      } else {
-        if (kDebugMode) {
-          print('❌ Error status code: ${response.statusCode}');
-        }
-        try {
-          final error = jsonDecode(response.body);
-          throw Exception(error['message'] ?? 'Failed to fetch banks');
-        } catch (e) {
-          throw Exception('Failed to fetch banks: ${response.statusCode}');
-        }
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('❌ Get banks error: $e');
-      }
-      rethrow;
-    }
+      return data;
+    });
   }
 
   // Validate account name
@@ -274,148 +146,115 @@ class WalletService {
     required String accountNumber,
     required String bankCode,
   }) async {
-    try {
-      final token = await StorageService.getToken();
-
+    return _handleResponse(() async {
       if (kDebugMode) {
         print('💰 ===== VALIDATE ACCOUNT NAME =====');
         print('💰 Endpoint: $baseUrl/wallet/validate-account-name');
         print('💰 Account: $accountNumber, Bank: $bankCode');
       }
-
-      final response = await http.post(
-        Uri.parse('$baseUrl/wallet/validate-account-name'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({
-          'accountNumber': accountNumber,
-          'bankCode': bankCode,
-        }),
+      final data = await DioClient.post(
+        'wallet/validate-account-name',
+        data: {'accountNumber': accountNumber, 'bankCode': bankCode},
       );
-
       if (kDebugMode) {
-        print('💰 Status Code: ${response.statusCode}');
-        print('💰 Response: ${response.body}');
+        print('💰 Response: $data');
         print('💰 ====================================');
       }
-
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      } else {
-        final error = jsonDecode(response.body);
-        throw Exception(error['message'] ?? 'Failed to validate account');
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('❌ Validate account error: $e');
-      }
-      rethrow;
-    }
+      return data;
+    });
   }
 
   // Transfer to external account
+  // Auth: provide either pin (4 digits) OR biometric (deviceId, signature, nonce, timestamp), not both.
   static Future<Map<String, dynamic>> transferToExternal({
     required String accountNumber,
+    required String accountName,
     required String bankCode,
+    required String bankName,
     required double amount,
     required String narration,
+    String? idempotencyKey,
+    String? pin,
+    bool biometric = false,
+    String? deviceId,
+    String? signature,
+    String? nonce,
+    int? timestamp,
   }) async {
-    try {
-      final token = await StorageService.getToken();
+    const _uuid = Uuid();
+    final idemKey = idempotencyKey ?? _uuid.v4();
 
+    final body = <String, dynamic>{
+      'idempotencyKey': idemKey,
+      'amount': amount,
+      'accountNumber': accountNumber,
+      'accountName': accountName,
+      'bankCode': bankCode,
+      'bankName': bankName,
+      'narration': narration,
+    };
+
+    if (pin != null && pin.isNotEmpty) {
+      body['pin'] = pin;
+    } else if (biometric &&
+        deviceId != null &&
+        signature != null &&
+        nonce != null &&
+        timestamp != null) {
+      body['biometric'] = true;
+      body['deviceId'] = deviceId;
+      body['signature'] = signature;
+      body['nonce'] = nonce;
+      body['timestamp'] = timestamp;
+    }
+
+    return _handleResponse(() async {
       if (kDebugMode) {
         print('💰 ===== TRANSFER TO EXTERNAL =====');
         print('💰 Endpoint: $baseUrl/wallet/transfer-to-external');
-        print('💰 Amount: $amount, Account: $accountNumber');
+        print('💰 Payload: $body');
       }
-
-      final response = await http.post(
-        Uri.parse('$baseUrl/wallet/transfer-to-external'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({
-          'accountNumber': accountNumber,
-          'bankCode': bankCode,
-          'amount': amount,
-          'narration': narration,
-        }),
+      final data = await DioClient.post(
+        'wallet/transfer-to-external',
+        data: body,
       );
-
       if (kDebugMode) {
-        print('💰 Status Code: ${response.statusCode}');
-        print('💰 Response: ${response.body}');
+        print('💰 Response: $data');
         print('💰 ===================================');
       }
-
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      } else {
-        final error = jsonDecode(response.body);
-        throw Exception(error['message'] ?? 'Transfer failed');
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('❌ Transfer error: $e');
-      }
-      rethrow;
-    }
+      return data;
+    });
   }
 
   /// POST /wallet/calculate-fee — Calculate transaction fee for a given amount
   static Future<Map<String, dynamic>> calculateFee(num amount) async {
-    try {
-      final token = await StorageService.getToken();
-      final response = await http.post(
-        Uri.parse('$baseUrl/wallet/calculate-fee'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({'amount': amount}),
-      );
+    return _handleResponse(() async {
       if (kDebugMode) {
-        print('💰 Calculate fee: ${response.statusCode} ${response.body}');
+        print('💰 ===== CALCULATE FEE =====');
+        print('💰 Endpoint: $baseUrl/wallet/calculate-fee Amount: $amount');
       }
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      }
-      final error = jsonDecode(response.body);
-      throw Exception(error['message'] ?? 'Failed to calculate fee');
-    } catch (e) {
-      if (kDebugMode) print('❌ Calculate fee error: $e');
-      rethrow;
-    }
+      final data = await DioClient.post(
+        'wallet/calculate-fee',
+        data: {'amount': amount},
+      );
+      if (kDebugMode) print('💰 Calculate fee response: $data');
+      return data;
+    });
   }
 
   // --- Biometric APIs ---
 
   /// GET /wallet/biometric/check/{deviceId}
   static Future<Map<String, dynamic>> checkBiometric(String deviceId) async {
-    try {
-      final token = await StorageService.getToken();
-      final response = await http.get(
-        Uri.parse('$baseUrl/wallet/biometric/check/$deviceId'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
+    return _handleResponse(() async {
       if (kDebugMode) {
-        print('💰 Biometric check: ${response.statusCode} ${response.body}');
+        print('💰 ===== CHECK BIOMETRIC =====');
+        print('💰 Endpoint: $baseUrl/wallet/biometric/check/$deviceId');
       }
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      }
-      final error = jsonDecode(response.body);
-      throw Exception(error['message'] ?? 'Failed to check biometric');
-    } catch (e) {
-      if (kDebugMode) print('❌ Check biometric error: $e');
-      rethrow;
-    }
+      final data = await DioClient.get('wallet/biometric/check/$deviceId');
+      if (kDebugMode) print('💰 Biometric check: $data');
+      return data;
+    });
   }
 
   /// POST /wallet/biometric/enable
@@ -423,57 +262,30 @@ class WalletService {
     required String deviceId,
     required String publicKey,
   }) async {
-    try {
-      final token = await StorageService.getToken();
-      final response = await http.post(
-        Uri.parse('$baseUrl/wallet/biometric/enable'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({'deviceId': deviceId, 'publicKey': publicKey}),
-      );
+    return _handleResponse(() async {
       if (kDebugMode) {
-        print('💰 Biometric enable: ${response.statusCode} ${response.body}');
+        print('💰 ===== ENABLE BIOMETRIC =====');
+        print('💰 Endpoint: $baseUrl/wallet/biometric/enable');
       }
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      }
-      final error = jsonDecode(response.body);
-      throw Exception(error['message'] ?? 'Failed to enable biometric');
-    } catch (e) {
-      if (kDebugMode) print('❌ Enable biometric error: $e');
-      rethrow;
-    }
+      final data = await DioClient.post(
+        'wallet/biometric/enable',
+        data: {'deviceId': deviceId, 'publicKey': publicKey},
+      );
+      if (kDebugMode) print('💰 Biometric enable: $data');
+      return data;
+    });
   }
 
   /// GET /wallet/biometric/challenge/{deviceId}
   static Future<Map<String, dynamic>> getBiometricChallenge(String deviceId) async {
-    try {
-      final token = await StorageService.getToken();
-      final endpoint = '$baseUrl/wallet/biometric/challenge/$deviceId';
+    return _handleResponse(() async {
       if (kDebugMode) {
-        print('📤 GET CHALLENGE Endpoint: $endpoint');
+        print('📤 GET CHALLENGE Endpoint: $baseUrl/wallet/biometric/challenge/$deviceId');
       }
-      final response = await http.get(
-        Uri.parse(endpoint),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
-      if (kDebugMode) {
-        print('📥 GET CHALLENGE Response: statusCode=${response.statusCode} body=${response.body}');
-      }
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      }
-      final error = jsonDecode(response.body);
-      throw Exception(error['message'] ?? 'Failed to get challenge');
-    } catch (e) {
-      if (kDebugMode) print('❌ Get challenge error: $e');
-      rethrow;
-    }
+      final data = await DioClient.get('wallet/biometric/challenge/$deviceId');
+      if (kDebugMode) print('📥 GET CHALLENGE Response: $data');
+      return data;
+    });
   }
 
   /// POST /wallet/biometric/disable
@@ -482,38 +294,23 @@ class WalletService {
     required String publicKey,
     required String signature,
   }) async {
-    try {
-      final token = await StorageService.getToken();
-      final endpoint = '$baseUrl/wallet/biometric/disable';
+    return _handleResponse(() async {
       final payload = {
         'deviceId': deviceId,
         'publicKey': publicKey,
         'signature': signature,
       };
       if (kDebugMode) {
-        print('📤 POST DISABLE Endpoint: $endpoint');
-        print('📤 POST DISABLE Payload: deviceId=$deviceId publicKeyLength=${publicKey.length} signatureLength=${signature.length} signaturePreview=${signature.length > 20 ? "${signature.substring(0, 20)}..." : signature}');
+        print('📤 POST DISABLE Endpoint: $baseUrl/wallet/biometric/disable');
+        print('📤 POST DISABLE Payload: deviceId=$deviceId publicKeyLength=${publicKey.length} signatureLength=${signature.length}');
       }
-      final response = await http.post(
-        Uri.parse(endpoint),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode(payload),
+      final data = await DioClient.post(
+        'wallet/biometric/disable',
+        data: payload,
       );
-      if (kDebugMode) {
-        print('📥 POST DISABLE Response: statusCode=${response.statusCode} body=${response.body}');
-      }
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      }
-      final error = jsonDecode(response.body);
-      throw Exception(error['message'] ?? 'Failed to disable biometric');
-    } catch (e) {
-      if (kDebugMode) print('❌ Disable biometric error: $e');
-      rethrow;
-    }
+      if (kDebugMode) print('📥 POST DISABLE Response: $data');
+      return data;
+    });
   }
 
   /// POST /wallet/biometrictest/verify — verify signature for transaction
@@ -521,27 +318,17 @@ class WalletService {
     required String deviceId,
     required String signature,
   }) async {
-    try {
-      final token = await StorageService.getToken();
-      final response = await http.post(
-        Uri.parse('$baseUrl/wallet/biometrictest/verify'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({'deviceId': deviceId, 'signature': signature}),
-      );
+    return _handleResponse(() async {
       if (kDebugMode) {
-        print('💰 Biometric verify: ${response.statusCode} ${response.body}');
+        print('💰 ===== VERIFY BIOMETRIC =====');
+        print('💰 Endpoint: $baseUrl/wallet/biometrictest/verify');
       }
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      }
-      final error = jsonDecode(response.body);
-      throw Exception(error['message'] ?? 'Biometric verification failed');
-    } catch (e) {
-      if (kDebugMode) print('❌ Verify biometric error: $e');
-      rethrow;
-    }
+      final data = await DioClient.post(
+        'wallet/biometrictest/verify',
+        data: {'deviceId': deviceId, 'signature': signature},
+      );
+      if (kDebugMode) print('💰 Biometric verify: $data');
+      return data;
+    });
   }
 }

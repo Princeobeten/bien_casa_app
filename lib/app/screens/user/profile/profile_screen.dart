@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -27,8 +26,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late UserProfileController _profileController;
   bool _biometricEnabled = false;
   bool _biometricLoading = false;
-  /// null = still loading, true = available, false = not available
-  bool? _biometricAvailable;
+  bool _biometricAvailable = false;
 
   @override
   void initState() {
@@ -63,12 +61,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return GetBuilder<AppModeController>(
       init: Get.find<AppModeController>(),
       builder: (controller) {
-        // Show skeleton loader while profile is loading (initial load or refresh)
+        // Show skeleton loader while loading profile
         return Obx(() {
-          final showSkeleton = _profileController.isInitialLoading.value ||
-              (_profileController.isLoading.value &&
-                  _profileController.userProfile.isEmpty);
-          if (showSkeleton) {
+          if (_profileController.isLoading.value &&
+              _profileController.userProfile.isEmpty) {
             return Scaffold(
               backgroundColor: Colors.white,
               appBar: AppBar(
@@ -101,31 +97,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
               body: const ProfileSkeletonLoader(),
-              bottomNavigationBar:
-                  controller.isHomeOwnerMode
-                      ? null
-                      : CustomBottomNavBar(
-                          currentIndex: _currentIndex,
-                          onTap: (index) {
-                            setState(() => _currentIndex = index);
-                            switch (index) {
-                              case 0:
-                                Get.offAllNamed('/user-home');
-                                break;
-                              case 1:
-                                Get.offAllNamed('/flatmate');
-                                break;
-                              case 2:
-                                Get.toNamed('/chat-list');
-                                break;
-                              case 3:
-                                Get.toNamed('/wallet');
-                                break;
-                              case 4:
-                                break;
-                            }
-                          },
-                        ),
             );
           }
 
@@ -392,8 +363,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       //   ),
                       // ),
 
-                      // Transfer with Biometric toggle (show row while loading so layout is stable)
-                      if (_biometricAvailable != false) ...[
+                      // Transfer with Biometric toggle
+                      if (_biometricAvailable) ...[
                         const SizedBox(height: 16),
                         Container(
                           margin: const EdgeInsets.symmetric(horizontal: 20),
@@ -434,11 +405,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     ),
                                     const SizedBox(height: 2),
                                     Text(
-                                      _biometricAvailable == null
-                                          ? 'Checking biometric availability...'
-                                          : _biometricEnabled
-                                              ? 'Use fingerprint or face to approve withdrawals'
-                                              : 'Use fingerprint or face instead of PIN for withdrawals',
+                                      _biometricEnabled
+                                          ? 'Use fingerprint or face to approve withdrawals'
+                                          : 'Use fingerprint or face instead of PIN for withdrawals',
                                       style: TextStyle(
                                         fontSize: 12,
                                         color: Colors.grey[700],
@@ -448,16 +417,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   ],
                                 ),
                               ),
-                              if (_biometricAvailable == null)
-                                const SizedBox(
-                                  width: 24,
-                                  height: 24,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.black,
-                                  ),
-                                )
-                              else if (_biometricLoading)
+                              if (_biometricLoading)
                                 const SizedBox(
                                   width: 24,
                                   height: 24,
@@ -654,11 +614,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           colorText: Colors.white,
         );
       }
-    } catch (e, stackTrace) {
-      if (kDebugMode) {
-        print('❌ Biometric toggle error: $e');
-        print('❌ Stack trace: $stackTrace');
-      }
+    } catch (e) {
       if (mounted) {
         Get.snackbar(
           'Error',

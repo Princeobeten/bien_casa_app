@@ -242,6 +242,16 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
       );
       return;
     }
+    if (amount < 50) {
+      Get.snackbar(
+        'Error',
+        'Minimum withdrawal is ₦50',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+        snackPosition: SnackPosition.TOP,
+      );
+      return;
+    }
 
     _showPaymentConfirmationSheet(amount);
   }
@@ -351,12 +361,20 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
               ),
               const SizedBox(height: 24),
               Text(
-                '₦${_formatCurrency(amount.toStringAsFixed(2))}',
-                style: const TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w600,
+                'Total amount',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey[600],
                   fontFamily: 'ProductSans',
                 ),
+              ),
+              const SizedBox(height: 6),
+              _buildNairaAmount(
+                amount + (_feeData != null ? _safeNum(_feeData!['fee']) : 0),
+                fontSize: 28,
+                fontWeight: FontWeight.w600,
+                color: Colors.black,
+                iconSize: 28,
               ),
               const SizedBox(height: 24),
               if (showBiometric) ...[
@@ -575,20 +593,32 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
         );
         return;
       }
-      final valid = await BiometricService.verifyBiometricForTransaction();
-      if (!valid) {
+      final deviceId = await BiometricService.getDeviceId();
+      final challengeRes = await WalletService.getBiometricChallenge(deviceId);
+      final rawChallenge = challengeRes['data']?['challenge'];
+      final challenge = rawChallenge == null ? '' : rawChallenge.toString();
+      if (challenge.isEmpty) {
         setModalState(() => _biometricSheetProcessing = false);
         Get.snackbar(
-          'Verification failed',
-          'Please try again or use your PIN',
+          'Error',
+          'Could not get verification challenge',
           snackPosition: SnackPosition.TOP,
           backgroundColor: Colors.red,
           colorText: Colors.white,
         );
         return;
       }
+      final signature = await BiometricService.signChallenge(challenge);
       submittingNotifier.value = true;
-      await _submitWithdrawal(amount, '', submittingNotifier);
+      await _submitWithdrawal(
+        amount,
+        '',
+        submittingNotifier,
+        deviceId: deviceId,
+        signature: signature,
+        nonce: challenge,
+        timestamp: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      );
       setModalState(() => _biometricSheetProcessing = false);
     } catch (e) {
       setModalState(() => _biometricSheetProcessing = false);
@@ -605,19 +635,34 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
   Future<void> _submitWithdrawal(
     double amount,
     String pin,
-    ValueNotifier<bool> submittingNotifier,
-  ) async {
+    ValueNotifier<bool> submittingNotifier, {
+    String? deviceId,
+    String? signature,
+    String? nonce,
+    int? timestamp,
+  }) async {
     setState(() => _isProcessing = true);
 
     try {
       final response = await WalletService.transferToExternal(
         accountNumber: _accountNumberController.text,
+        accountName: _validatedAccountName ?? '',
         bankCode: _selectedBankCode!,
+        bankName: _selectedBankName ?? '',
         amount: amount,
         narration:
             _narrationController.text.isNotEmpty
                 ? _narrationController.text
                 : 'Withdrawal to external account',
+        pin: pin.isNotEmpty ? pin : null,
+        biometric: deviceId != null &&
+            signature != null &&
+            nonce != null &&
+            timestamp != null,
+        deviceId: deviceId,
+        signature: signature,
+        nonce: nonce,
+        timestamp: timestamp,
       );
 
       if (!mounted) return;
@@ -687,6 +732,32 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
     );
   }
 
+  /// Naira SVG icon + formatted number (use instead of ₦ symbol).
+  Widget _buildNairaAmount(
+    num value, {
+    double fontSize = 14,
+    FontWeight fontWeight = FontWeight.w500,
+    Color? color,
+    double iconSize = 16,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildNairaSymbol(size: iconSize, color: color),
+        SizedBox(width: iconSize * 0.25),
+        Text(
+          _formatNairaNum(value),
+          style: TextStyle(
+            fontSize: fontSize,
+            fontWeight: fontWeight,
+            color: color ?? Colors.black,
+            fontFamily: 'ProductSans',
+          ),
+        ),
+      ],
+    );
+  }
+
   String _formatCurrency(String value) {
     if (value.isEmpty) return '';
     final cleanValue = value.replaceAll(',', '');
@@ -701,7 +772,12 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
   }
 
   String _formatNairaNum(num value) {
-    return '₦${value.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}';
+    return value
+        .toStringAsFixed(0)
+        .replaceAllMapped(
+          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+          (Match m) => '${m[1]},',
+        );
   }
 
   num _safeNum(dynamic value) {
@@ -710,6 +786,90 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
     if (value is int) return value.toDouble();
     final n = num.tryParse(value.toString());
     return n ?? 0;
+  }
+
+  void _showFeeExplanationModal(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(24),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Icon(Icons.info_outline_rounded, color: _accentColor, size: 24),
+                const SizedBox(width: 10),
+                const Text(
+                  'About the fee',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    fontFamily: 'ProductSans',
+                    color: Colors.black,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'A small fee is charged on withdrawals to cover processing and transfer costs. '
+              'The fee is calculated based on the amount you send and is shown before you confirm. '
+              'The total you pay is your withdrawal amount plus this fee.',
+              style: TextStyle(
+                fontSize: 14,
+                height: 1.5,
+                color: Colors.grey[700],
+                fontFamily: 'ProductSans',
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFeeHelpIcon(BuildContext context) {
+    return GestureDetector(
+      onTap: () => _showFeeExplanationModal(context),
+      child: Container(
+        width: 22,
+        height: 22,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.grey[200],
+          border: Border.all(color: Colors.grey[400]!, width: 1),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          '?',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey[700],
+            fontFamily: 'ProductSans',
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -1075,6 +1235,8 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
                     final amount = double.tryParse(value.replaceAll(',', ''));
                     if (amount == null || amount <= 0)
                       return 'Enter a valid amount';
+                    if (amount < 50)
+                      return 'Minimum withdrawal is ₦50';
                     if (widget.availableBalance != null &&
                         amount > widget.availableBalance!)
                       return 'Insufficient balance';
@@ -1101,17 +1263,27 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
                   ],
                 ),
 
+                const SizedBox(height: 10),
+
                 // Fee (single line below suggested amounts)
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      'Fee',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[600],
-                        fontFamily: 'ProductSans',
-                      ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Fee',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey[600],
+                            fontFamily: 'ProductSans',
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        _buildFeeHelpIcon(context),
+                      ],
                     ),
                     if (_feeLoading)
                       SizedBox(
@@ -1132,14 +1304,12 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
                         ),
                       )
                     else if (_feeData != null)
-                      Text(
-                        _formatNairaNum(_safeNum(_feeData!['fee'])),
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: _accentColor,
-                          fontFamily: 'ProductSans',
-                        ),
+                      _buildNairaAmount(
+                        _safeNum(_feeData!['fee']),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: _accentColor,
+                        iconSize: 16,
                       )
                     else
                       const SizedBox.shrink(),
@@ -1382,17 +1552,27 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
               ),
               const SizedBox(height: 20),
               Center(
-                child: Text(
-                  _formatNairaNum(
-                    _safeNum(_amountController.text.replaceAll(',', '')) +
-                        (_feeData != null ? _safeNum(_feeData!['fee']) : 0),
-                  ),
-                  style: const TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: 'ProductSans',
-                    color: Colors.black,
-                  ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Total amount',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey[600],
+                        fontFamily: 'ProductSans',
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _buildNairaAmount(
+                      _safeNum(_amountController.text.replaceAll(',', '')) +
+                          (_feeData != null ? _safeNum(_feeData!['fee']) : 0),
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                      iconSize: 32,
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 20),
@@ -1435,13 +1615,20 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      'Fee',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey[600],
-                        fontFamily: 'ProductSans',
-                      ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Fee',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey[600],
+                            fontFamily: 'ProductSans',
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        _buildFeeHelpIcon(context),
+                      ],
                     ),
                     SizedBox(
                       width: 16,
@@ -1459,22 +1646,27 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      'Fee',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey[600],
-                        fontFamily: 'ProductSans',
-                      ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Fee',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey[600],
+                            fontFamily: 'ProductSans',
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        _buildFeeHelpIcon(context),
+                      ],
                     ),
-                    Text(
-                      _formatNairaNum(_safeNum(_feeData!['fee'])),
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.black,
-                        fontFamily: 'ProductSans',
-                      ),
+                    _buildNairaAmount(
+                      _safeNum(_feeData!['fee']),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.black,
+                      iconSize: 14,
                     ),
                   ],
                 ),
@@ -1485,68 +1677,123 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
         const SizedBox(height: 24),
 
         // Action Buttons
-        Row(
-          children: [
-            Expanded(
-              child: GestureDetector(
-                onTap: () => setState(() => _currentStep = 1),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Center(
-                    child: Text(
-                      'Recheck',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        fontFamily: 'ProductSans',
-                        color: Colors.black,
-                      ),
+        Builder(
+          builder: (context) {
+            final amount = _safeNum(_amountController.text.replaceAll(',', ''));
+            final totalAmount = amount +
+                (_feeData != null ? _safeNum(_feeData!['fee']) : 0);
+            final isUnderMin = amount < 50;
+            final isOverBalance = widget.availableBalance != null &&
+                totalAmount > widget.availableBalance!;
+            final isDisabled = _isProcessing || isOverBalance || isUnderMin;
+            final disabledMessage = isUnderMin
+                ? 'Minimum withdrawal is ₦50'
+                : isOverBalance
+                    ? 'Total amount exceeds your available balance'
+                    : _isProcessing
+                        ? 'Please wait…'
+                        : null;
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (disabledMessage != null) ...[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                    margin: const EdgeInsets.only(bottom: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.orange.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline, size: 18, color: Colors.orange.shade800),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            disabledMessage,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.orange.shade900,
+                              fontFamily: 'ProductSans',
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: GestureDetector(
-                onTap: _isProcessing ? null : _processWithdraw,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  decoration: BoxDecoration(
-                    color: Colors.black,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Center(
-                    child:
-                        _isProcessing
-                            ? SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  Colors.white,
-                                ),
-                              ),
-                            )
-                            : const Text(
-                              'Continue',
-                              style: TextStyle(
+                ],
+                Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => setState(() => _currentStep = 1),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Center(
+                            child: Text(
+                              'Recheck',
+                              style: const TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w500,
                                 fontFamily: 'ProductSans',
-                                color: Colors.white,
+                                color: Colors.black,
                               ),
                             ),
-                  ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: isDisabled ? null : _processWithdraw,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          decoration: BoxDecoration(
+                            color: isDisabled
+                                ? Colors.grey[400]
+                                : Colors.black,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Center(
+                            child:
+                                _isProcessing
+                                    ? SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor: AlwaysStoppedAnimation<Color>(
+                                          Colors.white,
+                                        ),
+                                      ),
+                                    )
+                                    : Text(
+                                      'Continue',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                        fontFamily: 'ProductSans',
+                                        color: isDisabled
+                                            ? Colors.grey[200]
+                                            : Colors.white,
+                                      ),
+                                    ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ),
-          ],
+              ],
+            );
+          },
         ),
       ],
     );
