@@ -1,6 +1,7 @@
-import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class StorageService {
   static const String _tokenKey = 'auth_token';
@@ -8,23 +9,27 @@ class StorageService {
   static const String _userDataKey = 'user_data';
   static const String _isLoggedInKey = 'is_logged_in';
 
-  // Save authentication data
+  static const _secureStorage = FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+  );
+
+  // Save authentication data (tokens in secure storage, user data in prefs)
   static Future<void> saveAuthData({
     required String token,
     required Map<String, dynamic> userData,
     String? refreshToken,
   }) async {
     try {
+      await _secureStorage.write(key: _tokenKey, value: token);
+      if (refreshToken != null && refreshToken.isNotEmpty) {
+        await _secureStorage.write(key: _refreshTokenKey, value: refreshToken);
+      }
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_tokenKey, token);
       await prefs.setString(_userDataKey, jsonEncode(userData));
       await prefs.setBool(_isLoggedInKey, true);
-      if (refreshToken != null && refreshToken.isNotEmpty) {
-        await prefs.setString(_refreshTokenKey, refreshToken);
-      }
-      
+
       if (kDebugMode) {
-        print('✅ Auth data saved successfully');
+        print('✅ Auth data saved successfully (tokens in secure storage)');
         print('Token: ${token.substring(0, 20)}...');
         if (refreshToken != null) {
           print('Refresh token: ${refreshToken.substring(0, 20)}...');
@@ -39,11 +44,10 @@ class StorageService {
     }
   }
 
-  // Get stored refresh token
+  // Get stored refresh token (from secure storage)
   static Future<String?> getRefreshToken() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      return prefs.getString(_refreshTokenKey);
+      return await _secureStorage.read(key: _refreshTokenKey);
     } catch (e) {
       if (kDebugMode) {
         print('Error getting refresh token: $e');
@@ -52,16 +56,14 @@ class StorageService {
     }
   }
 
-  // Save tokens (used after refresh)
+  // Save tokens (used after refresh) - secure storage only
   static Future<void> saveTokens({
     required String accessToken,
     required String refreshToken,
   }) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_tokenKey, accessToken);
-      await prefs.setString(_refreshTokenKey, refreshToken);
-      
+      await _secureStorage.write(key: _tokenKey, value: accessToken);
+      await _secureStorage.write(key: _refreshTokenKey, value: refreshToken);
       if (kDebugMode) {
         print('✅ Tokens refreshed and saved');
       }
@@ -73,11 +75,10 @@ class StorageService {
     }
   }
 
-  // Get stored token
+  // Get stored access token (from secure storage)
   static Future<String?> getToken() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      return prefs.getString(_tokenKey);
+      return await _secureStorage.read(key: _tokenKey);
     } catch (e) {
       if (kDebugMode) {
         print('Error getting token: $e');
@@ -103,14 +104,12 @@ class StorageService {
     }
   }
 
-  // Check if user is logged in
+  // Check if user is logged in (token from secure storage)
   static Future<bool> isLoggedIn() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final isLoggedIn = prefs.getBool(_isLoggedInKey) ?? false;
-      final token = prefs.getString(_tokenKey);
-      
-      // User is logged in if flag is true AND token exists
+      final token = await getToken();
       return isLoggedIn && token != null && token.isNotEmpty;
     } catch (e) {
       if (kDebugMode) {
@@ -120,15 +119,14 @@ class StorageService {
     }
   }
 
-  // Clear all auth data (logout)
+  // Clear all auth data (logout) - tokens from secure storage, rest from prefs
   static Future<void> clearAuthData() async {
     try {
+      await _secureStorage.delete(key: _tokenKey);
+      await _secureStorage.delete(key: _refreshTokenKey);
       final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_tokenKey);
-      await prefs.remove(_refreshTokenKey);
       await prefs.remove(_userDataKey);
       await prefs.setBool(_isLoggedInKey, false);
-      
       if (kDebugMode) {
         print('✅ Auth data cleared successfully');
       }

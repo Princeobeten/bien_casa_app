@@ -451,15 +451,19 @@ class WalletService {
   static Future<Map<String, dynamic>> getBiometricChallenge(String deviceId) async {
     try {
       final token = await StorageService.getToken();
+      final endpoint = '$baseUrl/wallet/biometric/challenge/$deviceId';
+      if (kDebugMode) {
+        print('📤 GET CHALLENGE Endpoint: $endpoint');
+      }
       final response = await http.get(
-        Uri.parse('$baseUrl/wallet/biometric/challenge/$deviceId'),
+        Uri.parse(endpoint),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
       );
       if (kDebugMode) {
-        print('💰 Biometric challenge: ${response.statusCode} ${response.body}');
+        print('📥 GET CHALLENGE Response: statusCode=${response.statusCode} body=${response.body}');
       }
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
@@ -480,20 +484,26 @@ class WalletService {
   }) async {
     try {
       final token = await StorageService.getToken();
+      final endpoint = '$baseUrl/wallet/biometric/disable';
+      final payload = {
+        'deviceId': deviceId,
+        'publicKey': publicKey,
+        'signature': signature,
+      };
+      if (kDebugMode) {
+        print('📤 POST DISABLE Endpoint: $endpoint');
+        print('📤 POST DISABLE Payload: deviceId=$deviceId publicKeyLength=${publicKey.length} signatureLength=${signature.length} signaturePreview=${signature.length > 20 ? "${signature.substring(0, 20)}..." : signature}');
+      }
       final response = await http.post(
-        Uri.parse('$baseUrl/wallet/biometric/disable'),
+        Uri.parse(endpoint),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
-        body: jsonEncode({
-          'deviceId': deviceId,
-          'publicKey': publicKey,
-          'signature': signature,
-        }),
+        body: jsonEncode(payload),
       );
       if (kDebugMode) {
-        print('💰 Biometric disable: ${response.statusCode} ${response.body}');
+        print('📥 POST DISABLE Response: statusCode=${response.statusCode} body=${response.body}');
       }
       if (response.statusCode == 200) {
         return jsonDecode(response.body);

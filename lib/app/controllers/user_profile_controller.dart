@@ -6,6 +6,8 @@ import '../services/storage_service.dart';
 
 class UserProfileController extends GetxController {
   final RxBool isLoading = false.obs;
+  /// True until first profile load (cache or API) is done. Used for skeleton on profile screen.
+  final RxBool isInitialLoading = true.obs;
   final RxMap<String, dynamic> userProfile = <String, dynamic>{}.obs;
   final Rx<String?> authToken = Rx<String?>(null);
 
@@ -20,6 +22,7 @@ class UserProfileController extends GetxController {
     final cachedData = await StorageService.getUserData();
     if (cachedData != null && cachedData.isNotEmpty) {
       userProfile.value = cachedData;
+      isInitialLoading.value = false; // Show cached content immediately
       if (kDebugMode) {
         print('✅ Loaded cached profile data');
       }
@@ -29,11 +32,14 @@ class UserProfileController extends GetxController {
     authToken.value = await StorageService.getToken();
     if (authToken.value != null) {
       await fetchUserProfile();
+    } else {
+      isInitialLoading.value = false;
     }
   }
 
   Future<void> fetchUserProfile() async {
     if (authToken.value == null) {
+      isInitialLoading.value = false;
       if (kDebugMode) {
         print('⚠️ No auth token available');
       }
@@ -67,6 +73,7 @@ class UserProfileController extends GetxController {
       );
     } finally {
       isLoading.value = false;
+      isInitialLoading.value = false;
     }
   }
 

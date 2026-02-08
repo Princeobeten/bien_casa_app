@@ -23,7 +23,10 @@ class BiometricService {
   static Future<String> getDeviceId() async {
     try {
       final stored = await _storage.read(key: _keyDeviceId);
-      if (stored != null && stored.isNotEmpty) return stored;
+      if (stored != null && stored.isNotEmpty) {
+        if (kDebugMode) print('📱 BiometricService deviceId: $stored');
+        return stored;
+      }
 
       String id;
       if (defaultTargetPlatform == TargetPlatform.android) {
@@ -37,6 +40,7 @@ class BiometricService {
       }
       final safeId = id.replaceAll(RegExp(r'[^a-zA-Z0-9\-_]'), '-');
       await _storage.write(key: _keyDeviceId, value: safeId);
+      if (kDebugMode) print('📱 BiometricService deviceId: $safeId');
       return safeId;
     } catch (e) {
       if (kDebugMode) print('❌ BiometricService getDeviceId: $e');
@@ -90,7 +94,12 @@ class BiometricService {
     }
 
     final challengeRes = await WalletService.getBiometricChallenge(deviceId);
-    final challenge = challengeRes['data']?['challenge'] as String? ?? '';
+    final rawChallenge = challengeRes['data']?['challenge'];
+    // Backend may return challenge as number (e.g. 2) which causes radix-16 parse errors; normalize to string
+    final challenge = rawChallenge == null ? '' : rawChallenge.toString();
+    if (kDebugMode) {
+      print('📤 DISABLE challenge raw: $rawChallenge (type: ${rawChallenge != null ? rawChallenge.runtimeType : 'null'}) normalized: "$challenge"');
+    }
     if (challenge.isEmpty) throw Exception('No challenge received');
 
     final signature = await signChallenge(challenge);
@@ -143,7 +152,9 @@ class BiometricService {
 
     final privateKey = _parsePrivateKeyFromPem(privatePem);
     final digest = SHA256Digest();
-    final signer = RSASigner(digest, '2.16.840.1.101.3.4.2.1');
+    // Pointycastle RSASigner expects digest OID as HEX, not dotted decimal (e.g. 2.16.840...)
+    const sha256OidHex = '0609608648016503040201'; // DER AlgorithmIdentifier for SHA-256
+    final signer = RSASigner(digest, sha256OidHex);
     signer.init(true, PrivateKeyParameter<RSAPrivateKey>(privateKey));
 
     final messageBytes = Uint8List.fromList(utf8.encode(challenge));
@@ -178,6 +189,27 @@ class BiometricService {
     return Uint8List.fromList(base64.decode(pem));
   }
 
+  /// Read BigInt from DER-encoded ASN.1 INTEGER (avoids asn1lib valueAsBigInteger radix-16 parse).
+  static BigInt _asn1IntegerToBigInt(ASN1Integer asn1) {
+    final enc = asn1.encodedBytes;
+    if (enc.length < 2) return BigInt.zero;
+    int valueStart = 2;
+    int len = enc[1];
+    if (len & 0x80 != 0) {
+      final numLenBytes = len & 0x7f;
+      if (enc.length < 2 + numLenBytes) return BigInt.zero;
+      len = 0;
+      for (var i = 0; i < numLenBytes; i++) len = (len << 8) | (enc[2 + i] & 0xff);
+      valueStart = 2 + numLenBytes;
+    }
+    if (valueStart + len > enc.length) return BigInt.zero;
+    BigInt n = BigInt.zero;
+    for (var i = valueStart; i < valueStart + len; i++) {
+      n = (n << 8) | BigInt.from(enc[i] & 0xff);
+    }
+    return n;
+  }
+
   static RSAPrivateKey _parsePrivateKeyFromPem(String pem) {
     final bytes = _decodePem(pem);
     final parser = ASN1Parser(bytes);
@@ -185,10 +217,10 @@ class BiometricService {
     final keyOctets = top.elements[2] as ASN1OctetString;
     final pkParser = ASN1Parser(keyOctets.contentBytes());
     final pkSeq = pkParser.nextObject() as ASN1Sequence;
-    final modulus = (pkSeq.elements[1] as ASN1Integer).valueAsBigInteger;
-    final privateExponent = (pkSeq.elements[3] as ASN1Integer).valueAsBigInteger;
-    final p = (pkSeq.elements[4] as ASN1Integer).valueAsBigInteger;
-    final q = (pkSeq.elements[5] as ASN1Integer).valueAsBigInteger;
+    final modulus = _asn1IntegerToBigInt(pkSeq.elements[1] as ASN1Integer);
+    final privateExponent = _asn1IntegerToBigInt(pkSeq.elements[3] as ASN1Integer);
+    final p = _asn1IntegerToBigInt(pkSeq.elements[4] as ASN1Integer);
+    final q = _asn1IntegerToBigInt(pkSeq.elements[5] as ASN1Integer);
     return RSAPrivateKey(modulus, privateExponent, p, q);
   }
 
