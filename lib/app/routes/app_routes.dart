@@ -43,6 +43,7 @@ abstract class AppRoutes {
   static const FLAT_DETAIL = '/flat-detail';
   static const ADD_FLATMATE = '/add-flatmate';
   static const CAMPAIGNS_PAGE = '/campaigns-page';
+  static const CAMPAIGN_VIEW = '/campaign-view';
   static const FLATS_PAGE = '/flats-page';
   
   // Wallet routes

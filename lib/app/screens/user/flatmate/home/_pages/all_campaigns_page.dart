@@ -19,6 +19,15 @@ class _CampaignsPageState extends State<CampaignsPage> {
   final List<String> _filters = ['All', 'Flatmate', 'Flat', 'Short-stay'];
 
   @override
+  void initState() {
+    super.initState();
+    // Refresh campaigns when page opens
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Get.find<FlatmateController>().fetchCampaigns(limit: 50);
+    });
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();

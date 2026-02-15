@@ -840,16 +840,11 @@ class AuthController extends GetxController {
 
   @override
   void onClose() {
-    phoneController.removeListener(updatePhoneButtonState); // Remove listener
-    emailController.dispose();
-    phoneController.dispose();
-    passwordController.dispose();
-    newPasswordController.dispose();
-    confirmPasswordController.dispose();
-    referralCodeController.dispose();
-    for (var controller in otpControllers) {
-      controller.dispose();
-    }
+    phoneController.removeListener(updatePhoneButtonState);
+    // Do not dispose TextEditingControllers here. When navigating away (e.g. after
+    // login), the sign-in screen can still be in the tree for a frame during the
+    // transition; disposing controllers here causes "used after being disposed".
+    // Controllers will be reclaimed when this AuthController is GC'd.
     super.onClose();
   }
 

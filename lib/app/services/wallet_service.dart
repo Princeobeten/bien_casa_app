@@ -7,6 +7,28 @@ import 'dio_client.dart';
 class WalletService {
   static String get baseUrl => AppConstants.baseApiUrl;
 
+  /// Cached bank list for instant use in withdraw/select-bank. Populated by [ensureBanksLoaded] or [getBanks].
+  static List<Map<String, dynamic>>? _cachedBanks;
+
+  /// Returns a copy of the cached banks list, or empty if not yet loaded.
+  static List<Map<String, dynamic>> getCachedBanks() {
+    if (_cachedBanks == null) return [];
+    return List<Map<String, dynamic>>.from(_cachedBanks!);
+  }
+
+  /// Call when entering the wallet route to preload banks. Safe to call repeatedly; no-op if cache already has data.
+  static Future<void> ensureBanksLoaded() async {
+    if (_cachedBanks != null && _cachedBanks!.isNotEmpty) return;
+    try {
+      final data = await getBanks();
+      if (data['data'] is List && (data['data'] as List).isNotEmpty) {
+        _cachedBanks = (data['data'] as List)
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+      }
+    } catch (_) {}
+  }
+
   static Future<Map<String, dynamic>> _handleResponse(
       Future<Map<String, dynamic>> Function() fn) async {
     try {
@@ -125,7 +147,7 @@ class WalletService {
     });
   }
 
-  // Get available banks
+  // Get available banks (also updates cache for next time)
   static Future<Map<String, dynamic>> getBanks() async {
     return _handleResponse(() async {
       if (kDebugMode) {
@@ -133,6 +155,11 @@ class WalletService {
         print('💰 Endpoint: $baseUrl/wallet/banks');
       }
       final data = await DioClient.get('wallet/banks');
+      if (data['data'] is List && (data['data'] as List).isNotEmpty) {
+        _cachedBanks = (data['data'] as List)
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+      }
       if (kDebugMode) {
         print('💰 Response: $data');
         print('💰 ========================');

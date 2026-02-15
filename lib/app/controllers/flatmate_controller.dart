@@ -12,13 +12,35 @@ class FlatmateController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    // Fetch campaigns on init
-    fetchCampaigns();
+    // Fetch campaigns on init (GET /campaign/all, limit 50)
+    fetchCampaigns(limit: 50);
   }
 
-  // Fetch campaigns from API using CampaignEnhancedController
-  Future<void> fetchCampaigns({String? goal}) async {
-    await _campaignController.fetchCampaigns(goal: goal);
+  // Fetch campaigns from API using CampaignEnhancedController (GET /campaign/all)
+  Future<void> fetchCampaigns({
+    String? status,
+    int? cityTownId,
+    int? areaId,
+    num? budgetMin,
+    num? budgetMax,
+    String? budgetPlan,
+    int? maxFlatmates,
+    bool? isAcceptingRequest,
+    int page = 1,
+    int limit = 20,
+  }) async {
+    await _campaignController.fetchCampaigns(
+      status: status,
+      cityTownId: cityTownId,
+      areaId: areaId,
+      budgetMin: budgetMin,
+      budgetMax: budgetMax,
+      budgetPlan: budgetPlan,
+      maxFlatmates: maxFlatmates,
+      isAcceptingRequest: isAcceptingRequest,
+      page: page,
+      limit: limit,
+    );
   }
   
   // Get campaigns from CampaignEnhancedController

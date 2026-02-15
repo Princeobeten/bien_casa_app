@@ -45,7 +45,7 @@ class WithdrawalStatusScreen extends StatelessWidget {
     if (isSuccess) {
       icon = Icons.check_circle_rounded;
       iconColor = const Color(0xFF1ABC9C);
-      title = 'Withdrawal Successful';
+      title = 'Transfer initiated successfully';
       titleColor = Colors.black;
     } else if (isPending) {
       icon = Icons.schedule_rounded;
@@ -114,7 +114,7 @@ class WithdrawalStatusScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
+                      color: Colors.black.withOpacity(0.05),
                       blurRadius: 10,
                       offset: const Offset(0, 2),
                     ),

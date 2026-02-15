@@ -5,6 +5,7 @@ class Campaign {
   final String title;
   final String goal; // 'Flatmate', 'Flat', 'Short-stay'
   final double budget;
+  final double? endBudget; // optional; when set, display as range
   final String duration; // '1 Month', '3 Months', '6 Months', '1 Year'
   final DateTime moveDate;
   final String country;
@@ -29,6 +30,7 @@ class Campaign {
     required this.title,
     required this.goal,
     required this.budget,
+    this.endBudget,
     required this.duration,
     required this.moveDate,
     required this.country,
@@ -49,7 +51,40 @@ class Campaign {
     this.updatedAt,
   });
 
-  /// Create Campaign from JSON
+  /// From new campaign API response (GET /campaign/all, /campaign/{id}, GET /campaign/user/unpublished, etc.)
+  factory Campaign.fromApiMap(Map<String, dynamic> json) {
+    final cityTownInfo = json['campaignCityTownInfo'] is Map ? json['campaignCityTownInfo'] as Map : null;
+    final areaInfo = json['campaignAreaInfo'] is Map ? json['campaignAreaInfo'] as Map : null;
+    final cityName = cityTownInfo?['name']?.toString() ?? '';
+    final areaName = areaInfo?['name']?.toString() ?? '';
+    final city = cityName.isNotEmpty && areaName.isNotEmpty
+        ? '$cityName, $areaName'
+        : (cityName.isNotEmpty ? cityName : (areaName.isNotEmpty ? areaName : (json['campaignCityTown']?.toString() ?? '')));
+    final creator = json['creator'] is Map ? json['creator'] as Map : null;
+    final creatorName = creator != null
+        ? '${creator['firstName'] ?? ''} ${creator['lastName'] ?? ''}'.trim()
+        : '';
+    final displayName = city.isNotEmpty ? city : (creatorName.isNotEmpty ? 'Campaign by $creatorName' : 'Draft Campaign');
+    return Campaign(
+      id: json['id'] is int ? json['id'] as int : int.tryParse(json['id']?.toString() ?? ''),
+      title: displayName,
+      goal: 'Flatmate',
+      budget: (double.tryParse(json['campaignStartBudget']?.toString() ?? '0')) ?? 0,
+      endBudget: json['campaignEndBudget'] != null ? (double.tryParse(json['campaignEndBudget'].toString())) : null,
+      duration: json['campaignBudgetPlan'] == 'year' ? '1 Year' : json['campaignBudgetPlan'] == 'quarter' ? '3 Months' : '1 Month',
+      moveDate: DateTime.now(),
+      country: 'Nigeria',
+      city: city,
+      noOfFlatmates: json['maxNumberOfFlatmates'] is int ? json['maxNumberOfFlatmates'] as int : int.tryParse(json['maxNumberOfFlatmates']?.toString() ?? ''),
+      location: json['creatorNeighboringLocation']?.toString() ?? city,
+      status: json['status']?.toString(),
+      userId: json['creatorId'] is int ? json['creatorId'] as int : int.tryParse(json['creatorId']?.toString() ?? ''),
+      createdAt: json['createdAt'] != null ? DateTime.tryParse(json['createdAt'].toString()) : null,
+      updatedAt: json['updatedAt'] != null ? DateTime.tryParse(json['updatedAt'].toString()) : null,
+    );
+  }
+
+  /// Create Campaign from JSON (legacy)
   factory Campaign.fromJson(Map<String, dynamic> json) {
     return Campaign(
       id: json['id'] as int?,
@@ -110,6 +145,7 @@ class Campaign {
     String? title,
     String? goal,
     double? budget,
+    double? endBudget,
     String? duration,
     DateTime? moveDate,
     String? country,
@@ -134,6 +170,7 @@ class Campaign {
       title: title ?? this.title,
       goal: goal ?? this.goal,
       budget: budget ?? this.budget,
+      endBudget: endBudget ?? this.endBudget,
       duration: duration ?? this.duration,
       moveDate: moveDate ?? this.moveDate,
       country: country ?? this.country,
@@ -155,8 +192,13 @@ class Campaign {
     );
   }
 
-  /// Get formatted budget
+  /// Get formatted budget (single amount)
   String get formattedBudget => 'NGN ${budget.toStringAsFixed(0)}';
+
+  /// Get formatted budget as range when endBudget is set (e.g. "NGN 100,000 - NGN 500,000")
+  String get formattedBudgetRange => endBudget != null
+      ? 'NGN ${budget.toStringAsFixed(0)} - NGN ${endBudget!.toStringAsFixed(0)}'
+      : formattedBudget;
 
   /// Check if this is a flatmate campaign
   bool get isFlatmateCampaign => goal == 'Flatmate';

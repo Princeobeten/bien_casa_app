@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:flutter_google_places_sdk/flutter_google_places_sdk.dart';
 import '../../../controllers/home_owner_controller.dart';
 import '../../../config/app_constants.dart';
+import '../../../widgets/location_picker_bottom_sheet.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
@@ -57,7 +58,6 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
   // Google Places
   late FlutterGooglePlacesSdk _places;
   List<AutocompletePrediction> _placePredictions = [];
-  bool _isSearchingPlaces = false;
   
   // Computed hold amount
   double get _calculatedHoldAmount {
@@ -142,43 +142,6 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
     'Furnished',
     'Balcony',
   ];
-
-  Future<void> _searchPlaces(String query) async {
-    if (query.isEmpty) {
-      setState(() {
-        _placePredictions = [];
-      });
-      return;
-    }
-
-    setState(() {
-      _isSearchingPlaces = true;
-    });
-
-    try {
-      final predictions = await _places.findAutocompletePredictions(
-        query,
-        countries: ['NG'], // Restrict to Nigeria
-      );
-      
-      setState(() {
-        _placePredictions = predictions.predictions;
-        _isSearchingPlaces = false;
-      });
-    } catch (e) {
-      print('Error searching places: $e');
-      setState(() {
-        _isSearchingPlaces = false;
-      });
-    }
-  }
-
-  void _selectAddressPlace(AutocompletePrediction prediction) {
-    setState(() {
-      _addressController.text = prediction.fullText;
-      _placePredictions = [];
-    });
-  }
 
   @override
   void dispose() {
@@ -358,7 +321,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
 
               const SizedBox(height: 24),
 
-              // Address with Google Places Autocomplete
+              // Address with Google Places Autocomplete + Map picker
               _buildSectionTitle('Address'),
               const SizedBox(height: 8),
               Column(
@@ -366,8 +329,33 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                   TextFormField(
                     controller: _addressController,
                     maxLines: 2,
-                    onChanged: (value) {
-                      _searchPlaces(value);
+                    readOnly: true,
+                    onTap: () async {
+                      final result = await showLocationPicker(
+                        context: context,
+                        initialAddress: _addressController.text.isEmpty ? null : _addressController.text,
+                        initialLat: _latitude,
+                        initialLng: _longitude,
+                        hintText: 'Search for address...',
+                        confirmLabel: 'Use this address',
+                        countries: ['NG'],
+                      );
+                      if (result != null && mounted) {
+                        setState(() {
+                          _addressController.text = result.address;
+                          if (result.latitude != null && result.longitude != null) {
+                            _latitude = result.latitude;
+                            _longitude = result.longitude;
+                            _markers = {
+                              gmaps.Marker(
+                                markerId: const gmaps.MarkerId('property_location'),
+                                position: gmaps.LatLng(result.latitude!, result.longitude!),
+                                infoWindow: const gmaps.InfoWindow(title: 'Property Location'),
+                              ),
+                            };
+                          }
+                        });
+                      }
                     },
                     validator: (value) {
                       if (value == null || value.isEmpty) {
@@ -376,7 +364,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                       return null;
                     },
                     decoration: InputDecoration(
-                      hintText: 'Search for address...',
+                      hintText: 'Tap to search address on map...',
                       hintStyle: TextStyle(
                         fontFamily: 'ProductSans',
                         color: Colors.grey[500],
@@ -391,75 +379,10 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                         horizontal: 16,
                         vertical: 16,
                       ),
-                      suffixIcon: _isSearchingPlaces
-                          ? const Padding(
-                              padding: EdgeInsets.all(12),
-                              child: SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                            )
-                          : const Icon(Icons.location_on, color: Colors.grey),
+                      suffixIcon: const Icon(Icons.map_outlined, color: Colors.grey),
                     ),
                     style: const TextStyle(fontFamily: 'ProductSans', fontSize: 16),
                   ),
-                  if (_placePredictions.isNotEmpty)
-                    Container(
-                      margin: const EdgeInsets.only(top: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey[300]!),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      constraints: const BoxConstraints(maxHeight: 200),
-                      child: ListView.separated(
-                        shrinkWrap: true,
-                        itemCount: _placePredictions.length,
-                        separatorBuilder: (context, index) => Divider(
-                          height: 1,
-                          color: Colors.grey[200],
-                        ),
-                        itemBuilder: (context, index) {
-                          final prediction = _placePredictions[index];
-                          return ListTile(
-                            dense: true,
-                            leading: const Icon(
-                              Icons.location_on,
-                              color: Colors.grey,
-                              size: 20,
-                            ),
-                            title: Text(
-                              prediction.primaryText,
-                              style: const TextStyle(
-                                fontFamily: 'ProductSans',
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            subtitle: Text(
-                              prediction.secondaryText,
-                              style: TextStyle(
-                                fontFamily: 'ProductSans',
-                                fontSize: 12,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                            onTap: () => _selectAddressPlace(prediction),
-                          );
-                        },
-                      ),
-                    ),
                 ],
               ),
 
@@ -1266,6 +1189,46 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
             onChanged: _searchLocation,
             style: const TextStyle(fontFamily: 'ProductSans', fontSize: 16),
           ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: () async {
+              final result = await showLocationPicker(
+                context: context,
+                initialAddress: _locationSearchController.text.isEmpty ? null : _locationSearchController.text,
+                initialLat: _latitude,
+                initialLng: _longitude,
+                hintText: 'Search address...',
+                confirmLabel: 'Use this location',
+                countries: ['NG'],
+              );
+              if (result != null && mounted) {
+                setState(() {
+                  _locationSearchController.text = result.address;
+                  if (result.latitude != null && result.longitude != null) {
+                    _latitude = result.latitude;
+                    _longitude = result.longitude;
+                    _markers = {
+                      gmaps.Marker(
+                        markerId: const gmaps.MarkerId('property_location'),
+                        position: gmaps.LatLng(result.latitude!, result.longitude!),
+                        infoWindow: const gmaps.InfoWindow(title: 'Property Location'),
+                      ),
+                    };
+                  }
+                });
+                if (result.latitude != null && result.longitude != null) {
+                  _mapController?.animateCamera(
+                    gmaps.CameraUpdate.newLatLngZoom(
+                      gmaps.LatLng(result.latitude!, result.longitude!),
+                      16,
+                    ),
+                  );
+                }
+              }
+            },
+            icon: const Icon(Icons.map_outlined, size: 20),
+            label: const Text('Search on map', style: TextStyle(fontFamily: 'ProductSans')),
+          ),
           
           // Search Results
           if (_placePredictions.isNotEmpty) ...[
@@ -1451,26 +1414,23 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
       return;
     }
 
-    setState(() {
-      _isSearchingPlaces = true;
-    });
-
     try {
       final predictions = await _places.findAutocompletePredictions(
         query,
         countries: ['NG'], // Restrict to Nigeria
       );
-      
-      setState(() {
-        _placePredictions = predictions.predictions;
-        _isSearchingPlaces = false;
-      });
+      if (mounted) {
+        setState(() {
+          _placePredictions = predictions.predictions;
+        });
+      }
     } catch (e) {
       print('Error searching location: $e');
-      setState(() {
-        _isSearchingPlaces = false;
-        _placePredictions = [];
-      });
+      if (mounted) {
+        setState(() {
+          _placePredictions = [];
+        });
+      }
     }
   }
 

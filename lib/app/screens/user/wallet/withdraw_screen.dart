@@ -35,6 +35,7 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
   bool _isValidatingAccount = false;
   List<Map<String, dynamic>> _banks = [];
   List<Map<String, dynamic>> _filteredBanks = [];
+  final ValueNotifier<bool> _banksLoadingNotifier = ValueNotifier<bool>(true);
 
   // Fee calculation
   Map<String, dynamic>? _feeData;
@@ -45,8 +46,16 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
   @override
   void initState() {
     super.initState();
-    _loadBanks();
     _amountController.addListener(_onAmountChanged);
+    // Use cached banks from wallet route if already loaded; otherwise load now
+    final cached = WalletService.getCachedBanks();
+    if (cached.isNotEmpty) {
+      _banks = cached;
+      _filteredBanks = List<Map<String, dynamic>>.from(cached);
+      _banksLoadingNotifier.value = false;
+    } else {
+      _loadBanks();
+    }
   }
 
   void _onAmountChanged() {
@@ -123,6 +132,7 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
   }
 
   Future<void> _loadBanks() async {
+    _banksLoadingNotifier.value = true;
     try {
       final response = await WalletService.getBanks();
       if (response['data'] != null && response['data'] is List) {
@@ -132,16 +142,19 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
             _banks = banksList;
             _filteredBanks = banksList;
           });
+          _banksLoadingNotifier.value = false;
           return;
         }
       }
     } catch (e) {
       if (kDebugMode) print('Error loading banks: $e');
     }
+    // Fallback to local list; cache may be populated for next time
     setState(() {
       _banks = List<Map<String, dynamic>>.from(NigerianBanks.banks);
       _filteredBanks = _banks;
     });
+    _banksLoadingNotifier.value = false;
   }
 
   Future<void> _validateAccount() async {
@@ -876,6 +889,7 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
   void dispose() {
     _feeDebounce?.cancel();
     _amountController.removeListener(_onAmountChanged);
+    _banksLoadingNotifier.dispose();
     _accountNumberController.dispose();
     _amountController.dispose();
     _narrationController.dispose();
@@ -1955,18 +1969,43 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
                         ),
                         const SizedBox(height: 16),
                         Expanded(
-                          child:
-                              _filteredBanks.isEmpty
-                                  ? Center(
-                                    child: Text(
-                                      'No banks found',
-                                      style: TextStyle(
-                                        color: Colors.grey[600],
-                                        fontFamily: 'ProductSans',
+                          child: ValueListenableBuilder<bool>(
+                            valueListenable: _banksLoadingNotifier,
+                            builder: (context, banksLoading, _) {
+                              if (banksLoading) {
+                                return Center(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const CircularProgressIndicator(
+                                        color: _accentColor,
+                                        strokeWidth: 2,
                                       ),
+                                      const SizedBox(height: 16),
+                                      Text(
+                                        'Loading banks…',
+                                        style: TextStyle(
+                                          color: Colors.grey[600],
+                                          fontFamily: 'ProductSans',
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }
+                              if (_filteredBanks.isEmpty) {
+                                return Center(
+                                  child: Text(
+                                    'No banks found',
+                                    style: TextStyle(
+                                      color: Colors.grey[600],
+                                      fontFamily: 'ProductSans',
                                     ),
-                                  )
-                                  : ListView.builder(
+                                  ),
+                                );
+                              }
+                              return ListView.builder(
                                     itemCount: _filteredBanks.length,
                                     itemBuilder: (context, index) {
                                       final bank = _filteredBanks[index];
@@ -2010,7 +2049,9 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
                                                 : null,
                                       );
                                     },
-                                  ),
+                                  );
+                            },
+                          ),
                         ),
                       ],
                     ),

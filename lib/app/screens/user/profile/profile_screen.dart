@@ -244,7 +244,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                       // KYC Completion Banner (only show if not completed)
                       if (!_kycService.isKYCCompleted()) ...[
-                        const KYCCompletionBanner(),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: const KYCCompletionBanner(),
+                        ),
                         const SizedBox(height: 16),
                       ],
 

@@ -41,6 +41,8 @@ class _WalletScreenState extends State<WalletScreen> {
   void initState() {
     super.initState();
     _loadWalletData();
+    // Preload banks for withdraw screen so select-bank is instant
+    WalletService.ensureBanksLoaded();
   }
 
   Future<void> _loadWalletData({bool forceRefresh = false}) async {

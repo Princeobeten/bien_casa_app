@@ -37,6 +37,7 @@ import '../screens/user/flatmate_screen.dart';
 import '../screens/user/flatmate/home/_pages/flatmate_detail_screen.dart';
 import '../screens/user/flatmate/home/_pages/flat_detail_page.dart';
 import '../screens/user/flatmate/home/_pages/all_campaigns_page.dart';
+import '../screens/user/flatmate/create_campaign/stepped_campaign_view_page.dart';
 import '../screens/user/flatmate/home/_pages/flats_page.dart';
 import '../screens/user/wallet/wallet_screen.dart';
 import '../screens/user/wallet/withdraw_funds_screen.dart';
@@ -325,6 +326,12 @@ class AppPages {
     GetPage(
       name: AppRoutes.CAMPAIGNS_PAGE,
       page: () => const CampaignsPage(),
+      binding: FlatmateBinding(),
+      transition: Transition.rightToLeft,
+    ),
+    GetPage(
+      name: AppRoutes.CAMPAIGN_VIEW,
+      page: () => const SteppedCampaignViewPage(),
       binding: FlatmateBinding(),
       transition: Transition.rightToLeft,
     ),

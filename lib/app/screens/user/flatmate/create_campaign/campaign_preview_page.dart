@@ -97,7 +97,6 @@ class CampaignPreviewPage extends StatelessWidget {
                         _buildDetailRow('City/Town', controller.campaignCityTownController.text),
                         _buildDetailRow('Country', controller.country),
                         _buildDetailRow('Max Flatmates', controller.maxNumberOfFlatmates.toString()),
-                        _buildDetailRow('Accepting Requests', controller.isAcceptingRequest ? 'Yes' : 'No'),
 
                         // Show Home Owner details if applicable
                         if (controller.creatorIsHomeOwner) ...[
@@ -137,16 +136,15 @@ class CampaignPreviewPage extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 12),
-                          if (controller.matePersonalityTraitPreference['gender'] != null)
-                            _buildDetailRow('Gender', controller.matePersonalityTraitPreference['gender']),
-                          if (controller.matePersonalityTraitPreference['religion'] != null)
-                            _buildDetailRow('Religion', controller.matePersonalityTraitPreference['religion']),
-                          if (controller.matePersonalityTraitPreference['maritalStatus'] != null)
-                            _buildDetailRow('Marital Status', controller.matePersonalityTraitPreference['maritalStatus']),
-                          if (controller.matePersonalityTraitPreference['personality'] != null)
-                            _buildDetailRow('Personality', controller.matePersonalityTraitPreference['personality']),
-                          if (controller.matePersonalityTraitPreference['habit'] != null)
-                            _buildDetailRow('Habit', controller.matePersonalityTraitPreference['habit']),
+                          ...controller.matePersonalityTraitPreference.entries.map((e) {
+                            if (e.value == null) return const SizedBox.shrink();
+                            final v = e.value;
+                            final str = v is List ? v.map((x) => x.toString()).join(', ') : v.toString();
+                            if (str.isEmpty) return const SizedBox.shrink();
+                            final label = e.key.replaceAllMapped(RegExp(r'([A-Z])'), (m) => ' ${m.group(0)}').trim();
+                            final name = label.isNotEmpty ? label[0].toUpperCase() + label.substring(1) : e.key;
+                            return _buildDetailRow(name, str);
+                          }),
                         ],
 
                         // Show Flat preferences if goal is Flat

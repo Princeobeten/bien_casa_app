@@ -8,8 +8,10 @@ import 'flatmate/home/_widgets/available_flats_section.dart';
 import 'flatmate/home/_widgets/available_campaigns_section.dart';
 import 'flatmate/_widgets/floating_add_button.dart';
 import '../../widgets/custom_bottom_nav_bar.dart';
+import '../../controllers/flatmate_controller.dart';
 import '../../controllers/flatmate_match_controller.dart';
 import '../../controllers/campaign/campaign_enhanced_controller.dart';
+import '../../models/campaign/campaign.dart';
 import '../../routes/app_routes.dart';
 
 class FlatmateScreen extends StatefulWidget {
@@ -91,12 +93,20 @@ class _FlatmateScreenState extends State<FlatmateScreen> {
                 setState(() {
                   _selectedTabIndex = 0;
                 });
+                // Refresh campaigns when switching to Campaigns tab
+                Get.find<FlatmateController>().fetchCampaigns(limit: 50);
               },
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 decoration: BoxDecoration(
-                  color: _selectedTabIndex == 0 ? Colors.black : const Color(0xFFF8F8F8),
-                  borderRadius: BorderRadius.only(topLeft: Radius.circular(12), bottomLeft: Radius.circular(12)),
+                  color:
+                      _selectedTabIndex == 0
+                          ? Colors.black
+                          : const Color(0xFFF8F8F8),
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(12),
+                    bottomLeft: Radius.circular(12),
+                  ),
                 ),
                 child: Text(
                   'Campaigns',
@@ -118,13 +128,20 @@ class _FlatmateScreenState extends State<FlatmateScreen> {
                 setState(() {
                   _selectedTabIndex = 1;
                 });
+                // Refresh user's campaigns when switching to My Campaign tab
+                Get.find<CampaignEnhancedController>().fetchMyCampaigns();
               },
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 decoration: BoxDecoration(
-                  color: _selectedTabIndex == 1 ? Colors.black : const Color(0xFFF8F8F8),
-                 borderRadius: BorderRadius.only(topRight: Radius.circular(12), bottomRight: Radius.circular(12)),
-                
+                  color:
+                      _selectedTabIndex == 1
+                          ? Colors.black
+                          : const Color(0xFFF8F8F8),
+                  borderRadius: BorderRadius.only(
+                    topRight: Radius.circular(12),
+                    bottomRight: Radius.circular(12),
+                  ),
                 ),
                 child: Text(
                   'My Campaign',
@@ -148,83 +165,99 @@ class _FlatmateScreenState extends State<FlatmateScreen> {
   Widget _buildTabContent() {
     switch (_selectedTabIndex) {
       case 0: // Campaigns tab
-        return SingleChildScrollView(
-          child: Column(
-            children: [
-              // Info text with CTA button
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Browse available flatmate campaign by budget, location, interest etc.',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontFamily: 'ProductSans',
-                          color: Colors.grey[700],
-                          height: 1.4,
+        return RefreshIndicator(
+          onRefresh:
+              () => Get.find<FlatmateController>().fetchCampaigns(limit: 50),
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Column(
+              children: [
+                // Info text with CTA button
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 16,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Browse available flatmate campaign by budget, location, interest etc.',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontFamily: 'ProductSans',
+                            color: Colors.grey[700],
+                            height: 1.4,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    ElevatedButton(
-                      onPressed: () {
-                       Get.toNamed("/campaigns-page");
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: Colors.black,
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
+                      const SizedBox(width: 12),
+                      ElevatedButton(
+                        onPressed: () {
+                          Get.toNamed(AppRoutes.CAMPAIGNS_PAGE);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: const Text(
+                          'View All',
+                          style: TextStyle(
+                            fontFamily: 'ProductSans',
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
-                      child: const Text(
-                        'View All',
-                        style: TextStyle(
-                          fontFamily: 'ProductSans',
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              
-              // Campaign cards section
-              const MatchCardSection(),
-              const SizedBox(height: 20),
-              
-              // Available flats section
-              AvailableFlatsSection(
-                onViewAllTap: () {
-                  // Navigate to flats page to see all flats
-                  Get.toNamed(AppRoutes.FLATS_PAGE);
-                },
-              ),
-              const SizedBox(height: 20),
-              
-              // Available Campaigns section
-              AvailableCampaignsSection(
-                onViewAllTap: () {
-                  // Navigate to campaigns page to see all campaigns
-                  Get.toNamed(AppRoutes.CAMPAIGNS_PAGE);
-                },
-              ),
-              const SizedBox(height: 20),
-            ],
+
+                // Campaign cards section
+                const MatchCardSection(),
+                const SizedBox(height: 20),
+
+                // Available flats section
+                AvailableFlatsSection(
+                  onViewAllTap: () {
+                    // Navigate to flats page to see all flats
+                    Get.toNamed(AppRoutes.FLATS_PAGE);
+                  },
+                ),
+                const SizedBox(height: 20),
+
+                // Available Campaigns section
+                AvailableCampaignsSection(
+                  onViewAllTap: () {
+                    // Navigate to campaigns page to see all campaigns
+                    Get.toNamed(AppRoutes.CAMPAIGNS_PAGE);
+                  },
+                ),
+                const SizedBox(height: 20),
+              ],
+            ),
           ),
         );
       case 1: // My Campaign tab
-        return SingleChildScrollView(
-          child: Column(
-            children: [
-              const SizedBox(height: 16),
-              // My Campaign details
-              _buildMyCampaignDetails(),
-            ],
+        return RefreshIndicator(
+          onRefresh:
+              () => Get.find<CampaignEnhancedController>().fetchMyCampaigns(),
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Column(
+              children: [
+                const SizedBox(height: 16),
+                // My Campaign details
+                _buildMyCampaignDetails(),
+              ],
+            ),
           ),
         );
       default:
@@ -232,42 +265,8 @@ class _FlatmateScreenState extends State<FlatmateScreen> {
     }
   }
 
-  // Detailed My Campaign view
+  // Detailed My Campaign view — uses GET /campaign/user/my-campaigns
   Widget _buildMyCampaignDetails() {
-    // Mock data for user's campaign
-    const bool hasCampaign = true;
-
-    if (!hasCampaign) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const SizedBox(height: 60),
-            Icon(Icons.campaign_outlined, size: 80, color: Colors.grey[300]),
-            const SizedBox(height: 16),
-            Text(
-              'No Active Campaign',
-              style: TextStyle(
-                fontFamily: 'ProductSans',
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey[600],
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Create a campaign to find flatmates',
-              style: TextStyle(
-                fontFamily: 'ProductSans',
-                fontSize: 14,
-                color: Colors.grey[500],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
     return _buildMyCampaignQuickAccess();
   }
 
@@ -316,32 +315,13 @@ class _FlatmateScreenState extends State<FlatmateScreen> {
     );
   }
 
-  // My Campaign Quick Access - Using real API data
+  // My Campaign Quick Access — GET /campaign/user/my-campaigns
   Widget _buildMyCampaignQuickAccess() {
     final campaignController = Get.find<CampaignEnhancedController>();
-    
-    return Obx(() {
-      // Console log the campaigns API data
-      print('=== MY CAMPAIGNS API DATA ===');
-      print('Total Campaigns: ${campaignController.myCampaigns.length}');
-      print('Is Loading: ${campaignController.isLoading}');
-      
-      if (campaignController.myCampaigns.isNotEmpty) {
-        for (int i = 0; i < campaignController.myCampaigns.length; i++) {
-          final campaign = campaignController.myCampaigns[i];
-          print('Campaign $i:');
-          print('  ID: ${campaign.id}');
-          print('  Title: ${campaign.title}');
-          print('  Goal: ${campaign.goal}');
-          print('  Budget: ${campaign.budget}');
-          print('  City: ${campaign.city}');
-          print('  Status: ${campaign.status}');
-        }
-      }
-      print('============================');
 
+    return Obx(() {
       // Show loading state
-      if (campaignController.isLoading) {
+      if (campaignController.myCampaignsLoading) {
         return Container(
           margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
           padding: const EdgeInsets.all(20),
@@ -350,9 +330,7 @@ class _FlatmateScreenState extends State<FlatmateScreen> {
             border: Border.all(color: Colors.grey[100]!),
             borderRadius: BorderRadius.circular(15),
           ),
-          child: const Center(
-            child: CircularProgressIndicator(),
-          ),
+          child: const Center(child: CircularProgressIndicator()),
         );
       }
 
@@ -413,193 +391,270 @@ class _FlatmateScreenState extends State<FlatmateScreen> {
         );
       }
 
-      // Show first campaign with real data
-      final campaign = campaignController.myCampaigns.first;
-      
-      return Container(
-        margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border.all(color: Colors.grey[100]!),
-          borderRadius: BorderRadius.circular(15),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF8F8F8),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.campaign_rounded,
-                    color: Colors.black,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'My Campaign',
-                        style: TextStyle(
-                          fontFamily: 'ProductSans',
-                          fontSize: 12,
-                          color: Colors.grey,
-                          fontWeight: FontWeight.w400,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        campaign.title,
-                        style: const TextStyle(
-                          fontFamily: 'ProductSans',
-                          fontSize: 16,
-                          color: Colors.black,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _getStatusColor(campaign.status ?? 'Active').withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.circle,
-                        size: 8,
-                        color: _getStatusColor(campaign.status ?? 'Active'),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        campaign.status ?? 'Active',
-                        style: TextStyle(
-                          fontFamily: 'ProductSans',
-                          fontSize: 11,
-                          color: _getStatusColor(campaign.status ?? 'Active'),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+      // Show all campaigns — Gradient Premium design (shades of black)
+      const gradientStart = Color(0xFF0D0D0D);
+      const gradientEnd = Color(0xFF1a1a1a);
 
-            const SizedBox(height: 16),
-
-            // Campaign details
-            Row(
-              children: [
-                Icon(Icons.location_on, size: 16, color: Colors.grey[600]),
-                const SizedBox(width: 6),
-                Text(
-                  '${campaign.city}, ${campaign.country}',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontFamily: 'ProductSans',
-                    color: Colors.grey[700],
+      return Column(
+        children: [
+          ...campaignController.myCampaigns.map(
+            (campaign) => Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [gradientStart, gradientEnd],
                   ),
-                ),
-                const SizedBox(width: 16),
-                Icon(Icons.account_balance_wallet, size: 16, color: Colors.grey[600]),
-                const SizedBox(width: 6),
-                Text(
-                  campaign.formattedBudget,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontFamily: 'ProductSans',
-                    color: Colors.grey[700],
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 16),
-
-            // Quick Actions
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () {
-                      // Navigate to all campaigns page
-                      Get.toNamed(AppRoutes.CAMPAIGNS_PAGE);
-                    },
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.black,
-                      side: BorderSide(color: Colors.grey.shade300),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: gradientStart.withValues(alpha: 0.3),
+                      blurRadius: 24,
+                      offset: const Offset(0, 8),
                     ),
-                    child: const Text(
-                      'View All',
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header: Campaign info + Delete
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              width: 48,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              alignment: Alignment.center,
+                              child: const Icon(
+                                Icons.campaign_rounded,
+                                size: 24,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'My Campaign',
+                                  style: TextStyle(
+                                    fontFamily: 'ProductSans',
+                                    fontSize: 12,
+                                    color: Colors.white.withValues(alpha: 0.8),
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '${campaign.id ?? '-'}',
+                                  style: const TextStyle(
+                                    fontFamily: 'ProductSans',
+                                    fontSize: 28,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        GestureDetector(
+                          onTap: () => _showDeleteConfirm(campaign),
+                          child: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            alignment: Alignment.center,
+                            child: const Icon(
+                              Icons.delete_outline,
+                              size: 20,
+                              color: Color(0xFFE53935),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // Range section
+                    Text(
+                      campaign.formattedBudgetRange,
                       style: TextStyle(
                         fontFamily: 'ProductSans',
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                        color: Colors.white.withValues(alpha: 0.9),
+                        fontWeight: FontWeight.w400,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
+
+                    const SizedBox(height: 16),
+
+                    // Footer: Status badge + View button
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Builder(
+                          builder: (context) {
+                            final statusColor = _getStatusColor(
+                              campaign.status ?? 'Active',
+                            );
+                            return Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: statusColor.withValues(alpha: 0.3),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.circle,
+                                    size: 8,
+                                    color: statusColor,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    campaign.status ?? 'Active',
+                                    style: TextStyle(
+                                      fontFamily: 'ProductSans',
+                                      fontSize: 14,
+                                      color: statusColor,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                        Material(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(25),
+                          child: InkWell(
+                            onTap: () {
+                              if (campaign.id == null) return;
+                              if (campaign.status?.toLowerCase() == 'draft') {
+                                Get.toNamed(
+                                  AppRoutes.ADD_FLATMATE,
+                                  arguments: {'campaignId': campaign.id},
+                                );
+                              } else {
+                                Get.toNamed(
+                                  AppRoutes.CAMPAIGN_VIEW,
+                                  arguments: campaign,
+                                );
+                              }
+                            },
+                            borderRadius: BorderRadius.circular(25),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 32,
+                                vertical: 12,
+                              ),
+                              child: Text(
+                                campaign.status?.toLowerCase() == 'draft'
+                                    ? 'Continue'
+                                    : 'View',
+                                style: const TextStyle(
+                                  fontFamily: 'ProductSans',
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF0D0D0D),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () => Get.toNamed(AppRoutes.ADD_FLATMATE),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.black,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: const Text(
-                      'Create New',
-                      style: TextStyle(
-                        fontFamily: 'ProductSans',
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 16),
+        ],
       );
     });
+  }
+
+  void _showDeleteConfirm(Campaign campaign) {
+    if (campaign.id == null) return;
+    Get.dialog(
+      AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Delete Campaign',
+          style: TextStyle(
+            fontFamily: 'ProductSans',
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        content: Text(
+          'Are you sure you want to delete "${campaign.title}"? This action cannot be undone.',
+          style: const TextStyle(fontFamily: 'ProductSans', fontSize: 15),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(fontFamily: 'ProductSans'),
+            ),
+          ),
+          TextButton(
+            onPressed: () async {
+              Get.back();
+              final success = await Get.find<CampaignEnhancedController>()
+                  .deleteCampaign(campaign.id!);
+              if (success) {
+                Get.find<CampaignEnhancedController>().fetchMyCampaigns();
+              }
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text(
+              'Delete',
+              style: TextStyle(
+                fontFamily: 'ProductSans',
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Color _getStatusColor(String status) {
     switch (status.toLowerCase()) {
       case 'active':
         return Colors.green.shade600;
+      case 'inactive':
       case 'paused':
         return Colors.orange.shade600;
       case 'closed':
+      case 'completed':
         return Colors.red.shade600;
+      case 'draft':
+        return Colors.grey.shade400;
       default:
         return Colors.grey.shade600;
     }

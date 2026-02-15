@@ -28,7 +28,8 @@ class KYCCompletionBanner extends StatelessWidget {
         },
         {
           'headline': 'Confirm your identity',
-          'subtitle': 'Link your NIN to verify your identity and unlock all features',
+          'subtitle':
+              'Link your NIN to verify your identity and unlock all features',
           'icon': Icons.badge_outlined,
           'title': 'Verify NIN',
           'isCompleted': kycController.ninSet.value,
@@ -132,7 +133,7 @@ class KYCCompletionBanner extends StatelessWidget {
                               height: 32,
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.12),
+                                color: Colors.white.withValues(alpha: 0.25),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
@@ -182,7 +183,7 @@ class KYCCompletionBanner extends StatelessWidget {
                               color: Colors.white.withValues(alpha: 0.9),
                               size: 24,
                             ),
-                            const SizedBox(width: 8), 
+                            const SizedBox(width: 8),
                             Icon(
                               Icons.arrow_forward_ios_rounded,
                               color: Colors.white.withValues(alpha: 0.5),

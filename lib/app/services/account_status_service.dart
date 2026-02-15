@@ -14,10 +14,19 @@ class AccountStatusService {
     } on DioException catch (e) {
       if (kDebugMode) {
         print('❌ Account status error: $e');
+        print('❌ Response data: ${e.response?.data}');
       }
-      final message = e.response?.data is Map
-          ? (e.response!.data as Map)['message']?.toString()
-          : null;
+      String? message;
+      if (e.response?.data is Map) {
+        final data = e.response!.data as Map;
+        message = data['message']?.toString();
+        if (message == null && data['errors'] is List) {
+          final parts = (data['errors'] as List)
+              .map((x) => x is Map ? '${x['field']}: ${x['message']}' : x.toString())
+              .toList();
+          if (parts.isNotEmpty) message = parts.join('; ');
+        }
+      }
       throw Exception(message ?? e.message ?? 'Request failed');
     }
   }
@@ -36,6 +45,11 @@ class AccountStatusService {
       }
       return data;
     });
+  }
+
+  /// GET /user/profile — Retrieves the authenticated user's profile (firstName, lastName, email, phone, profilePhoto).
+  static Future<Map<String, dynamic>> getProfile() async {
+    return _handleResponse(() => DioClient.get('user/profile'));
   }
 
   // Send email OTP
@@ -157,6 +171,76 @@ class AccountStatusService {
   static Future<Map<String, dynamic>> getDataFields(String categoryName) async {
     return _handleResponse(() =>
         DioClient.get('misc/datafields/$categoryName'));
+  }
+
+  /// GET /misc/city-town — List of supported cities and towns (legacy, prefer states/cities).
+  static Future<List<String>> getCityTowns() async {
+    final res = await _handleResponse(() => DioClient.get('misc/city-town'));
+    final data = res['data'];
+    if (data is List) {
+      return data.map((e) => e?.toString() ?? '').where((s) => s.isNotEmpty).toList();
+    }
+    return [];
+  }
+
+  /// GET /misc/states — List of states (id, name, position).
+  static Future<List<Map<String, dynamic>>> getStates() async {
+    final res = await _handleResponse(() => DioClient.get('misc/states'));
+    final data = res['data'];
+    if (data is List) {
+      return data.map((e) {
+        final m = e is Map ? Map<String, dynamic>.from(Map.from(e)) : <String, dynamic>{};
+        return {
+          'id': m['id'] is int ? m['id'] : int.tryParse(m['id']?.toString() ?? '0'),
+          'name': m['name']?.toString() ?? '',
+          'position': m['position'] is int ? m['position'] : int.tryParse(m['position']?.toString() ?? '0'),
+        };
+      }).where((m) => m['name'] != null && m['name'] != '').toList();
+    }
+    return [];
+  }
+
+  /// GET /misc/cities/{stateId} — Cities for a state (id, name, stateId, position).
+  static Future<List<Map<String, dynamic>>> getCities(int stateId) async {
+    final res = await _handleResponse(() => DioClient.get('misc/cities/$stateId'));
+    final data = res['data'];
+    if (data is List) {
+      return data.map((e) {
+        final m = e is Map ? Map<String, dynamic>.from(Map.from(e)) : <String, dynamic>{};
+        return {
+          'id': m['id'] is int ? m['id'] : int.tryParse(m['id']?.toString() ?? '0'),
+          'name': m['name']?.toString() ?? '',
+          'stateId': m['stateId'] is int ? m['stateId'] : int.tryParse(m['stateId']?.toString() ?? '0'),
+          'position': m['position'] is int ? m['position'] : int.tryParse(m['position']?.toString() ?? '0'),
+        };
+      }).where((m) => m['name'] != null && m['name'] != '').toList();
+    }
+    return [];
+  }
+
+  /// GET /misc/areas/{cityTownId} — Areas for a city/town (id, name, cityTownId, position).
+  /// API response: { "message": "...", "data": [ { "id", "name", "cityTownId", "position" } ] }
+  static Future<List<Map<String, dynamic>>> getAreas(int cityTownId) async {
+    if (kDebugMode) {
+      print('📡 GET areas for cityTownId: $cityTownId');
+    }
+    final res = await _handleResponse(() => DioClient.get('misc/areas/$cityTownId'));
+    // Backend returns { message, data: [ {...}, ... ] }
+    final data = res['data'];
+    final List rawList = data is List ? data : (res['areas'] is List ? res['areas'] as List : []);
+    if (kDebugMode) {
+      print('📡 Areas response: ${rawList.length} items');
+    }
+    return rawList.map((e) {
+      final m = e is Map ? Map<String, dynamic>.from(Map.from(e)) : <String, dynamic>{};
+      final name = m['name']?.toString() ?? m['areaName']?.toString() ?? m['label']?.toString() ?? '';
+      return {
+        'id': m['id'] is int ? m['id'] : int.tryParse(m['id']?.toString() ?? '0'),
+        'name': name,
+        'cityTownId': m['cityTownId'] is int ? m['cityTownId'] : int.tryParse(m['cityTownId']?.toString() ?? '0'),
+        'position': m['position'] is int ? m['position'] : int.tryParse(m['position']?.toString() ?? '0'),
+      };
+    }).where((m) => (m['name'] as String?)?.isNotEmpty ?? false).toList();
   }
 
   // Update user profile
